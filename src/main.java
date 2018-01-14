@@ -9,6 +9,8 @@ import java.text.DecimalFormat;
 import java.text.NumberFormat;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.logging.FileHandler;
 import java.util.logging.Logger;
 import java.util.logging.SimpleFormatter;
@@ -28,6 +30,7 @@ import com.webcerebrium.binance.datatype.BinanceOrderPlacement;
 import com.webcerebrium.binance.datatype.BinanceOrderSide;
 import com.webcerebrium.binance.datatype.BinanceOrderType;
 import com.webcerebrium.binance.datatype.BinanceSymbol;
+import com.webcerebrium.binance.datatype.BinanceWalletAsset;
 
 public class main {
 
@@ -38,7 +41,7 @@ public class main {
 	public static int sellCount = 2;
 	public static int buyCnt = 2;
 	public static int boughtCnt = 0;
-	public static int maxBuyCnt = 3;
+	public static int maxBuyCnt = 2;
 	public static int numberOfKindle = 3;
 	public static boolean isReallyBuy;
 	public static double totalBalance;
@@ -66,13 +69,28 @@ public class main {
 
 		while (true) {
 			try {
+				BinanceApi api = new BinanceApi();
 				if (needToupdateTotalBalance) {
-					totalBalance = new BinanceApi().balancesMap().get("ETH").free.doubleValue();
-					sendMsgToTelegram("Current Balance : " + totalBalance, true);
-					needToupdateTotalBalance = false;
+					boolean existOpenOrders = false;
+					Map<String, BinanceWalletAsset> balance = api.balancesMap();
+					Set<String> keys = balance.keySet();
+					for (String key : keys) {
+						try {
+							if (api.openOrders(BinanceSymbol.valueOf(key + "ETH")).size() != 0) {
+								existOpenOrders = true;
+							}
+						} catch (BinanceApiException e) {
+
+						}
+					}
+					if (!existOpenOrders) {
+						totalBalance = balance.get("ETH").free.doubleValue();
+						sendMsgToTelegram("Current Balance : " + totalBalance, true);
+						needToupdateTotalBalance = false;
+					}
 				}
 
-				JsonArray prices = new BinanceApi().allBookTickers();
+				JsonArray prices = api.allBookTickers();
 				for (int i = 0; i < prices.size(); i++) {
 					JsonObject price = prices.get(i).getAsJsonObject();
 					String coinName = price.get("symbol").toString().replaceAll("\"", "");
@@ -87,10 +105,11 @@ public class main {
 						continue;
 					}
 					if (coins.containsKey(key)) {
-						double curPrice = Double.parseDouble(price.get("askPrice").toString().replaceAll("\"", ""));
+						double curSellPrice = Double.parseDouble(price.get("askPrice").toString().replaceAll("\"", ""));
+						double curBuyPrice = Double.parseDouble(price.get("bidPrice").toString().replaceAll("\"", ""));
 						BinanceSymbol symbol = new BinanceSymbol(key);
-						List<BinanceCandlestick> klines = (new BinanceApi()).klines(symbol, BinanceInterval.THREE_MIN,
-								numberOfKindle, null);
+						List<BinanceCandlestick> klines = api.klines(symbol, BinanceInterval.THREE_MIN, numberOfKindle,
+								null);
 						boolean isRapidUp = true;
 						for (int k = 0; k < numberOfKindle; k++) {
 							BinanceCandlestick binanceCandlestick = klines.get(k);
@@ -105,8 +124,8 @@ public class main {
 						CoinInfo coinInfo = coins.get(key);
 
 						if (isRapidUp && coinInfo.buyPrice == 0 && boughtCnt < maxBuyCnt) {
-							coinInfo.buyPrice = curPrice;
-							sendMsgToTelegram(key + "이 급등하였습니다. Buy : " + curPrice, false);
+							coinInfo.buyPrice = curSellPrice;
+							sendMsgToTelegram(key + "이 급등하였습니다. Buy : " + curSellPrice, false);
 							if (isReallyBuy) {
 								buyCoin(coinInfo);
 							}
@@ -114,21 +133,21 @@ public class main {
 						}
 
 						if (coinInfo.buyPrice != 0) {
-							klines = (new BinanceApi()).klines(symbol, BinanceInterval.FIFTEEN_MIN, 1, null);
+							klines = api.klines(symbol, BinanceInterval.FIFTEEN_MIN, 1, null);
 							BinanceCandlestick binanceCandlestick = klines.get(0);
 							double openPrice = binanceCandlestick.open.doubleValue();
 							double closePrice = binanceCandlestick.close.doubleValue();
 							double rate = openPrice / closePrice;
-							double cutRate = coinInfo.buyPrice / curPrice;
+							double cutRate = coinInfo.buyPrice / curBuyPrice;
 
 							if (cutRate >= constantSellThreshold) {
-								cutRate = curPrice / coinInfo.buyPrice;
-								sendMsgToTelegram(key + "을 " + coinInfo.buyPrice + "에 매수하여, " + curPrice
+								cutRate = curBuyPrice / coinInfo.buyPrice;
+								sendMsgToTelegram(key + "을 " + coinInfo.buyPrice + "에 매수하여, " + curBuyPrice
 										+ "에 매도하였습니다. (" + cutRate + ") ", false);
 								curProfit += (100 * cutRate) - 100;
 								sendMsgToTelegram("Cur Profit : " + curProfit + ", Bought : \n" + getBoughtList(),
 										false);
-								coinInfo.cutPrice = curPrice;
+								coinInfo.cutPrice = curBuyPrice;
 								if (isReallyBuy) {
 									sellCoin(coinInfo);
 								}
@@ -136,14 +155,14 @@ public class main {
 									needToupdateTotalBalance = true;
 								}
 							} else if (rate > sellThreshold) {
-								double curRate = curPrice / coinInfo.buyPrice;
+								double curRate = curBuyPrice / coinInfo.buyPrice;
 								if (curRate > 1.03f) {
-									sendMsgToTelegram(key + "을 " + coinInfo.buyPrice + "에 매수하여, " + curPrice
+									sendMsgToTelegram(key + "을 " + coinInfo.buyPrice + "에 매수하여, " + curBuyPrice
 											+ "에 매도하였습니다. (" + curRate + ") ", false);
 									curProfit += (100 * curRate) - 100;
 									sendMsgToTelegram("Cur Profit : " + curProfit + ", Bought : \n" + getBoughtList(),
 											false);
-									coinInfo.cutPrice = curPrice;
+									coinInfo.cutPrice = curBuyPrice;
 									if (isReallyBuy) {
 										sellCoin(coinInfo);
 									}
@@ -230,14 +249,11 @@ public class main {
 			placement.setQuantity(BigDecimal.valueOf(quantity));
 			BinanceOrder order = api.getOrderById(symbol, api.createOrder(placement).get("orderId").getAsLong());
 			sendMsgToTelegram(order.toString(), true);
-			if (!order.toString().contains("ERROR")) {
-				String price = order.toString();
-				price = price.substring(price.indexOf("price="));
-				price = price.substring(price.indexOf("=")+1, price.indexOf(","));
-				coin.buyPrice = Double.valueOf(price);
-				boughtCnt++;
-			} else {
+			if (order.toString().contains("ERROR") || order.toString().contains("Fail")) {
 				coin.buyPrice = 0;
+			} else {
+				coin.buyPrice = order.price.doubleValue();
+				boughtCnt++;
 			}
 		} catch (BinanceApiException e) {
 			sendMsgToTelegram(e.getMessage(), true);
@@ -264,7 +280,14 @@ public class main {
 			placement.setQuantity(BigDecimal.valueOf(quantity));
 			BinanceOrder order = api.getOrderById(symbol, api.createOrder(placement).get("orderId").getAsLong());
 			sendMsgToTelegram(order.toString(), true);
-			if (!order.toString().contains("ERROR")) {
+			if (order.toString().contains("ERROR") || order.toString().contains("Fail")) {
+				List<BinanceOrder> orders = api.openOrders(BinanceSymbol.valueOf(coin.key));
+				if(orders.size() != 0) {
+					for(BinanceOrder existOrder : orders) {
+						api.deleteOrder(existOrder);
+					}
+				}
+			} else {
 				boughtCnt--;
 				coin.buyPrice = 0;
 			}
