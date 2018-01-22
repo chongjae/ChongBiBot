@@ -363,6 +363,87 @@ public class main {
 			e.printStackTrace();
 		}
 	}
+	public static void calMCAD() {
+		try {
+			int firstEMA = 12;
+			int secondEMA = 26;
+			int nDays = 30;
+
+			BinanceApi api = new BinanceApi();
+			BinanceSymbol symbol = new BinanceSymbol("TRXETH");
+			List<BinanceCandlestick> klines = api.klines(symbol, BinanceInterval.FIFTEEN_MIN, secondEMA + nDays, null);
+			if (klines.size() < secondEMA + nDays) {
+				return;
+			}
+			ArrayList<MACDInfo> list = new ArrayList<>();
+			for (BinanceCandlestick candle : klines) {
+				list.add(new MACDInfo(candle.closeTime, candle.close.doubleValue()));
+				System.out.println(candle.close);
+			}
+			double avg = 0;
+			for (int i = 0; i < firstEMA; i++) {
+				MACDInfo macdInfo = list.get(i);
+				avg += macdInfo.closePrice;
+			}
+
+			System.out.println("=================" + avg);
+			list.get(firstEMA - 1).ema12 = (double) avg / (double) firstEMA;
+			System.out.println(avg / firstEMA);
+			for (int i = firstEMA; i < list.size(); i++) {
+				MACDInfo macdInfo = list.get(i);
+				MACDInfo prevMacdInfo = list.get(i - 1);
+				if (i < secondEMA) {
+					avg += macdInfo.closePrice;
+				}
+				macdInfo.ema12 = macdInfo.closePrice * (2.0 / ((double) firstEMA + 1))
+						+ prevMacdInfo.ema12 * (1.0 - (2.0 / ((double) firstEMA + 1)));
+				System.out.println(prevMacdInfo.ema12);
+			}
+			list.get(secondEMA - 1).ema26 = (double) avg / (double) secondEMA;
+			System.out.println("=================" + avg);
+
+			for (int i = secondEMA; i < list.size(); i++) {
+				MACDInfo macdInfo = list.get(i);
+				MACDInfo prevMacdInfo = list.get(i - 1);
+				macdInfo.ema26 = macdInfo.closePrice * (2.0 / ((double) secondEMA + 1))
+						+ prevMacdInfo.ema26 * (1.0 - (2.0 / ((double) secondEMA + 1)));
+				System.out.println(prevMacdInfo.ema26);
+
+			}
+
+			avg = 0;
+			for (int i = secondEMA - 1; i < list.size(); i++) {
+				MACDInfo macdInfo = list.get(i);
+				System.out.println(macdInfo.ema12 + " - " + macdInfo.ema26);
+				macdInfo.macd = macdInfo.ema12 - macdInfo.ema26;
+				avg += macdInfo.macd;
+			}
+
+			avg /= nDays;
+
+			list.get(list.size() - 1).signal = avg;
+
+			for (MACDInfo info : list) {
+				System.out.println(info.macd);
+			}
+		} catch (BinanceApiException e) {
+			// TODO: handle exception
+		}
+	}
+
+	public static class MACDInfo {
+		long date;
+		double closePrice;
+		double ema12;
+		double ema26;
+		double macd;
+		double signal;
+
+		public MACDInfo(long date, double closePrice) {
+			this.date = date;
+			this.closePrice = closePrice;
+		}
+	}
 
 	public static class CoinInfo {
 		public String key;
