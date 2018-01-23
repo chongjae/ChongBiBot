@@ -111,8 +111,13 @@ public class Main {
 						double curSellPrice = Double.parseDouble(price.get("askPrice").toString().replaceAll("\"", ""));
 						double curBuyPrice = Double.parseDouble(price.get("bidPrice").toString().replaceAll("\"", ""));
 						CoinInfo coinInfo = coins.get(key);
-						calMCAD(coinInfo);
+						if (coinInfo.list.isEmpty()) {
+							calMCAD(coinInfo);
+							continue;
+						}
 
+						calMCAD(coinInfo);
+						
 						if (coinInfo.isSignalForBuy() && coinInfo.buyPrice == 0 && boughtCnt < maxBuyCnt) {
 							coinInfo.buyPrice = curSellPrice;
 							sendMsgToTelegram(key + "이 급등하였습니다. Buy : " + curSellPrice, false);
@@ -374,8 +379,14 @@ public class Main {
 			ArrayList<MACDInfo> list = coin.list;
 
 			if (!list.isEmpty()) {
-				list.add(new MACDInfo(klines.get(klines.size()-1).closeTime, klines.get(klines.size()-1).close.doubleValue()));
+				BinanceCandlestick candle = klines.get(klines.size() - 1);
 				MACDInfo macdInfo = list.get(list.size() - 1);
+				if (candle.closeTime - macdInfo.date == 0) {
+					macdInfo.closePrice = candle.close.doubleValue();
+				} else {
+					list.add(new MACDInfo(candle.closeTime, candle.close.doubleValue()));
+					macdInfo = list.get(list.size() - 1);
+				}
 				MACDInfo prevMacdInfo = list.get(list.size() - 2);
 				macdInfo.ema12 = macdInfo.closePrice * (2.0 / ((double) firstEMA + 1))
 						+ prevMacdInfo.ema12 * (1.0 - (2.0 / ((double) firstEMA + 1)));
