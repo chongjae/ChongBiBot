@@ -363,7 +363,7 @@ public class Main {
 			int firstEMA = 12;
 			int secondEMA = 26;
 			int signalDays = 9;
-			int nDays = 1440;
+			int nDays = 474;
 
 			BinanceApi api = new BinanceApi();
 			BinanceSymbol symbol = new BinanceSymbol(coin.key);
