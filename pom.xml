@@ -4,24 +4,78 @@
 	<groupId>BinanceBot</groupId>
 	<artifactId>BinanceBot</artifactId>
 	<version>0.0.1-SNAPSHOT</version>
+	<packaging>jar</packaging>
 	<dependencies>
 		<dependency>
 			<groupId>com.webcerebrium</groupId>
 			<artifactId>binance-api</artifactId>
 			<version>1.0.7</version>
 		</dependency>
+		<dependency>
+		    <groupId>org.xerial</groupId>
+		    <artifactId>sqlite-jdbc</artifactId>
+		    <version>3.21.0.1</version>
+		</dependency>
+		<dependency>
+		    <groupId>com.github.pengrad</groupId>
+		    <artifactId>java-telegram-bot-api</artifactId>
+		    <version>3.5.2</version>
+		</dependency>
 	</dependencies>
-	<build>
-		<sourceDirectory>src</sourceDirectory>
-		<plugins>
-			<plugin>
-				<artifactId>maven-compiler-plugin</artifactId>
-				<version>3.6.1</version>
-				<configuration>
-					<source>1.8</source>
-					<target>1.8</target>
-				</configuration>
-			</plugin>
-		</plugins>
-	</build>
+<properties>
+    <deploy.target.dir>./output</deploy.target.dir>
+    <lib.dir>lib</lib.dir>
+    <jar.name>binanceBot</jar.name>
+</properties>
+     
+<build>
+    <plugins>
+        <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-jar-plugin</artifactId>
+            <version>3.0.2</version>
+             
+            <configuration>
+                <finalName>${jar.name}</finalName>
+                <!-- jar 파일이 생성될 폴더 -->
+                <outputDirectory>${deploy.target.dir}</outputDirectory>
+                <archive>
+                    <manifest>
+                        <!-- public static void main() 함수가 있는 클래스 지정 -->
+                        <mainClass>com.chongjae.Main</mainClass>
+                         
+                        <!-- jar 파일 META-INF/MANIFEST.MF 에 클래스패스 정보 추가 -->
+                        <addClasspath>true</addClasspath>
+                         
+                        <!--
+                            클래스패스에 추가시 prefix 설정
+                            ex) log4j-1.2.16.jar -> lib/log4j-1.2.16.jar 로 추가됨
+                        -->
+                        <classpathPrefix>${lib.dir}/</classpathPrefix>
+                    </manifest>
+                </archive>
+            </configuration>
+        </plugin>
+         
+        <!-- package 실행할때 프로젝트 디펜던시들을 특정폴더로 복사해주게 설정  -->
+        <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-dependency-plugin</artifactId>
+            <version>2.3</version>
+            <executions>
+                <execution>
+                    <id>copy-dependencies</id>
+                    <phase>package</phase>
+                    <goals>
+                        <goal>copy-dependencies</goal>
+                    </goals>
+                </execution>
+            </executions>
+            <configuration>
+                <outputDirectory>${deploy.target.dir}/${lib.dir}</outputDirectory>
+                <overWriteIfNewer>true</overWriteIfNewer>
+            </configuration>
+        </plugin>
+    </plugins>
+</build>
 </project>
