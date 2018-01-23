@@ -7,6 +7,7 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.text.DecimalFormat;
 import java.text.NumberFormat;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -70,7 +71,7 @@ public class main {
 		while (true) {
 			try {
 				BinanceApi api = new BinanceApi();
-				if (needToupdateTotalBalance) {
+				if (isReallyBuy && needToupdateTotalBalance) {
 					boolean existOpenOrders = false;
 					Map<String, BinanceWalletAsset> balance = api.balancesMap();
 					Set<String> keys = balance.keySet();
@@ -107,37 +108,21 @@ public class main {
 					if (coins.containsKey(key)) {
 						double curSellPrice = Double.parseDouble(price.get("askPrice").toString().replaceAll("\"", ""));
 						double curBuyPrice = Double.parseDouble(price.get("bidPrice").toString().replaceAll("\"", ""));
-						BinanceSymbol symbol = new BinanceSymbol(key);
-						List<BinanceCandlestick> klines = api.klines(symbol, BinanceInterval.THREE_MIN, numberOfKindle,
-								null);
-						boolean isRapidUp = true;
-						for (int k = 0; k < numberOfKindle; k++) {
-							BinanceCandlestick binanceCandlestick = klines.get(k);
-							double openPrice = binanceCandlestick.open.doubleValue();
-							double closePrice = binanceCandlestick.close.doubleValue();
-							double rate = closePrice / openPrice;
-							if (rate < rapidThreshold) {
-								isRapidUp = false;
-							}
-						}
-
 						CoinInfo coinInfo = coins.get(key);
+						calMCAD(coinInfo);
 
-						if (isRapidUp && coinInfo.buyPrice == 0 && boughtCnt < maxBuyCnt) {
+						if (coinInfo.isSignalForBuy() && coinInfo.buyPrice == 0 && boughtCnt < maxBuyCnt) {
 							coinInfo.buyPrice = curSellPrice;
 							sendMsgToTelegram(key + "이 급등하였습니다. Buy : " + curSellPrice, false);
 							if (isReallyBuy) {
 								buyCoin(coinInfo);
+							} else {
+								boughtCnt++;
 							}
 							continue;
 						}
 
 						if (coinInfo.buyPrice != 0) {
-							klines = api.klines(symbol, BinanceInterval.FIFTEEN_MIN, 1, null);
-							BinanceCandlestick binanceCandlestick = klines.get(0);
-							double openPrice = binanceCandlestick.open.doubleValue();
-							double closePrice = binanceCandlestick.close.doubleValue();
-							double rate = openPrice / closePrice;
 							double cutRate = coinInfo.buyPrice / curBuyPrice;
 
 							if (cutRate >= constantSellThreshold) {
@@ -150,11 +135,14 @@ public class main {
 								coinInfo.cutPrice = curBuyPrice;
 								if (isReallyBuy) {
 									sellCoin(coinInfo);
+								} else {
+									boughtCnt--;
+									coinInfo.buyPrice = 0;
 								}
 								if (boughtCnt == 0) {
 									needToupdateTotalBalance = true;
 								}
-							} else if (rate > sellThreshold) {
+							} else if (coinInfo.isSignalForSell()) {
 								double curRate = curBuyPrice / coinInfo.buyPrice;
 								if (curRate > 1.03f) {
 									sendMsgToTelegram(key + "을 " + coinInfo.buyPrice + "에 매수하여, " + curBuyPrice
@@ -165,6 +153,9 @@ public class main {
 									coinInfo.cutPrice = curBuyPrice;
 									if (isReallyBuy) {
 										sellCoin(coinInfo);
+									} else {
+										boughtCnt--;
+										coinInfo.buyPrice = 0;
 									}
 									if (boughtCnt == 0) {
 										needToupdateTotalBalance = true;
@@ -175,12 +166,13 @@ public class main {
 					}
 				}
 
-				Thread.sleep(1000);
+				try {
+					Thread.sleep(1000);
+				} catch (Exception e) {
+				}
 				logger.info("System is running....");
-			} catch (Exception e) {
-				logger.info(e.getMessage());
 			} catch (BinanceApiException e) {
-				logger.info(e.getMessage());
+				logger.info("Binance API Exception is occurred : " + e.getMessage());
 			}
 		}
 	}
@@ -282,8 +274,8 @@ public class main {
 			sendMsgToTelegram(order.toString(), true);
 			if (order.toString().contains("ERROR") || order.toString().contains("Fail")) {
 				List<BinanceOrder> orders = api.openOrders(BinanceSymbol.valueOf(coin.key));
-				if(orders.size() != 0) {
-					for(BinanceOrder existOrder : orders) {
+				if (orders.size() != 0) {
+					for (BinanceOrder existOrder : orders) {
 						api.deleteOrder(existOrder);
 					}
 				}
@@ -363,32 +355,50 @@ public class main {
 			e.printStackTrace();
 		}
 	}
-	public static void calMCAD() {
+
+	public static void calMCAD(CoinInfo coin) {
 		try {
 			int firstEMA = 12;
 			int secondEMA = 26;
-			int nDays = 30;
+			int signalDays = 9;
+			int nDays = 1440;
 
 			BinanceApi api = new BinanceApi();
-			BinanceSymbol symbol = new BinanceSymbol("TRXETH");
+			BinanceSymbol symbol = new BinanceSymbol(coin.key);
 			List<BinanceCandlestick> klines = api.klines(symbol, BinanceInterval.FIFTEEN_MIN, secondEMA + nDays, null);
 			if (klines.size() < secondEMA + nDays) {
 				return;
 			}
-			ArrayList<MACDInfo> list = new ArrayList<>();
+			ArrayList<MACDInfo> list = coin.list;
+
+			if (!list.isEmpty()) {
+				list.add(new MACDInfo(klines.get(klines.size()-1).closeTime, klines.get(klines.size()-1).close.doubleValue()));
+				MACDInfo macdInfo = list.get(list.size() - 1);
+				MACDInfo prevMacdInfo = list.get(list.size() - 2);
+				macdInfo.ema12 = macdInfo.closePrice * (2.0 / ((double) firstEMA + 1))
+						+ prevMacdInfo.ema12 * (1.0 - (2.0 / ((double) firstEMA + 1)));
+				macdInfo.ema26 = macdInfo.closePrice * (2.0 / ((double) secondEMA + 1))
+						+ prevMacdInfo.ema26 * (1.0 - (2.0 / ((double) secondEMA + 1)));
+				macdInfo.macd = macdInfo.ema12 - macdInfo.ema26;
+				macdInfo.signal = macdInfo.macd * (2.0 / ((double) signalDays + 1.0))
+						+ prevMacdInfo.signal * (1.0 - (2.0 / ((double) signalDays + 1.0)));
+				calRSI(list);
+				return;
+			}
+
 			for (BinanceCandlestick candle : klines) {
 				list.add(new MACDInfo(candle.closeTime, candle.close.doubleValue()));
-				System.out.println(candle.close);
 			}
+
+			// Step1. Cal first 12 ema
 			double avg = 0;
 			for (int i = 0; i < firstEMA; i++) {
 				MACDInfo macdInfo = list.get(i);
 				avg += macdInfo.closePrice;
 			}
 
-			System.out.println("=================" + avg);
+			// Step2. Cal all of 12 ema
 			list.get(firstEMA - 1).ema12 = (double) avg / (double) firstEMA;
-			System.out.println(avg / firstEMA);
 			for (int i = firstEMA; i < list.size(); i++) {
 				MACDInfo macdInfo = list.get(i);
 				MACDInfo prevMacdInfo = list.get(i - 1);
@@ -397,37 +407,109 @@ public class main {
 				}
 				macdInfo.ema12 = macdInfo.closePrice * (2.0 / ((double) firstEMA + 1))
 						+ prevMacdInfo.ema12 * (1.0 - (2.0 / ((double) firstEMA + 1)));
-				System.out.println(prevMacdInfo.ema12);
 			}
 			list.get(secondEMA - 1).ema26 = (double) avg / (double) secondEMA;
-			System.out.println("=================" + avg);
 
+			// Step3. Cal all of 26 ema
 			for (int i = secondEMA; i < list.size(); i++) {
 				MACDInfo macdInfo = list.get(i);
 				MACDInfo prevMacdInfo = list.get(i - 1);
 				macdInfo.ema26 = macdInfo.closePrice * (2.0 / ((double) secondEMA + 1))
 						+ prevMacdInfo.ema26 * (1.0 - (2.0 / ((double) secondEMA + 1)));
-				System.out.println(prevMacdInfo.ema26);
 
+			}
+
+			// Step4. Cal all of macd
+			for (int i = secondEMA - 1; i < list.size(); i++) {
+				MACDInfo macdInfo = list.get(i);
+				macdInfo.macd = macdInfo.ema12 - macdInfo.ema26;
 			}
 
 			avg = 0;
-			for (int i = secondEMA - 1; i < list.size(); i++) {
+			for (int i = secondEMA - 1; i < secondEMA + signalDays - 1; i++) {
 				MACDInfo macdInfo = list.get(i);
-				System.out.println(macdInfo.ema12 + " - " + macdInfo.ema26);
-				macdInfo.macd = macdInfo.ema12 - macdInfo.ema26;
 				avg += macdInfo.macd;
 			}
+			avg /= (double) signalDays;
 
-			avg /= nDays;
+			list.get(secondEMA + signalDays).signal = avg;
 
-			list.get(list.size() - 1).signal = avg;
-
-			for (MACDInfo info : list) {
-				System.out.println(info.macd);
+			// Step5. Cal all of signal
+			for (int i = secondEMA + signalDays + 1; i < list.size(); i++) {
+				MACDInfo macdInfo = list.get(i);
+				MACDInfo prevMacdInfo = list.get(i - 1);
+				macdInfo.signal = macdInfo.macd * (2.0 / ((double) signalDays + 1.0))
+						+ prevMacdInfo.signal * (1.0 - (2.0 / ((double) signalDays + 1.0)));
 			}
+
+			/*
+			 * macd > signal => Buy macd < signal => Sell
+			 */
+
+			calRSI(list);
 		} catch (BinanceApiException e) {
 			// TODO: handle exception
+		}
+	}
+
+	public static void calRSI(ArrayList<MACDInfo> list) {
+		int nDays = 14;
+
+		if (!list.isEmpty()) {
+			MACDInfo info = list.get(list.size() - 1);
+			MACDInfo preInfo = list.get(list.size() - 2);
+			info.diff = info.closePrice - preInfo.closePrice;
+			double day = (double) nDays;
+			double day2 = day - 1.0;
+			if (info.diff > 0) {
+				info.avgUp = ((preInfo.avgUp * day2) + info.diff) / day;
+				info.avgDown = (preInfo.avgDown * day2) / day;
+			} else {
+				info.avgUp = (preInfo.avgUp * day2) / day;
+				info.avgDown = ((preInfo.avgDown * day2) - info.diff) / day;
+			}
+			info.rs = info.avgUp / info.avgDown;
+			info.rsi = 100.0 - (100.0 / (1.0 + info.rs));
+			return;
+		}
+		// Step1. Cal Diff
+		for (int i = 1; i < list.size(); i++) {
+			MACDInfo info = list.get(i);
+			MACDInfo preInfo = list.get(i - 1);
+			info.diff = info.closePrice - preInfo.closePrice;
+		}
+
+		// Step2. Cal avg of up and down
+		MACDInfo firstAvg = list.get(nDays);
+		for (int i = 1; i < nDays + 1; i++) {
+			MACDInfo info = list.get(i);
+			if (info.diff > 0) {
+				firstAvg.avgUp += info.diff;
+			} else {
+				firstAvg.avgDown -= info.diff;
+			}
+		}
+
+		firstAvg.avgUp /= (double) nDays;
+		firstAvg.avgDown /= (double) nDays;
+
+		for (int i = nDays + 1; i < list.size(); i++) {
+			MACDInfo info = list.get(i);
+			MACDInfo preInfo = list.get(i - 1);
+
+			double day = (double) nDays;
+			double day2 = day - 1.0;
+			if (info.diff > 0) {
+				info.avgUp = ((preInfo.avgUp * day2) + info.diff) / day;
+				info.avgDown = (preInfo.avgDown * day2) / day;
+			} else {
+				info.avgUp = (preInfo.avgUp * day2) / day;
+				info.avgDown = ((preInfo.avgDown * day2) - info.diff) / day;
+			}
+
+			info.rs = info.avgUp / info.avgDown;
+
+			info.rsi = 100.0 - (100.0 / (1.0 + info.rs));
 		}
 	}
 
@@ -438,6 +520,11 @@ public class main {
 		double ema26;
 		double macd;
 		double signal;
+		double diff;
+		double avgUp;
+		double avgDown;
+		double rs;
+		double rsi;
 
 		public MACDInfo(long date, double closePrice) {
 			this.date = date;
@@ -453,6 +540,7 @@ public class main {
 		public NumberFormat quantityStep;
 		public double minPrice;
 		public NumberFormat priceStep;
+		public ArrayList<MACDInfo> list = new ArrayList<>();
 
 		public CoinInfo(String key, double minQty, NumberFormat step, double minPrice, NumberFormat priceStep) {
 			this.key = key;
@@ -460,6 +548,28 @@ public class main {
 			this.quantityStep = step;
 			this.minPrice = minPrice;
 			this.priceStep = priceStep;
+		}
+
+		public boolean isSignalForBuy() {
+			if (list.isEmpty()) {
+				return false;
+			}
+			MACDInfo info = list.get(list.size() - 1);
+			if (info.macd > info.signal && info.rsi < 35 && buyPrice == 0) {
+				return true;
+			}
+			return false;
+		}
+
+		public boolean isSignalForSell() {
+			if (list.isEmpty()) {
+				return false;
+			}
+			MACDInfo info = list.get(list.size() - 1);
+			if (info.macd < info.signal && info.rsi > 80 && buyPrice != 0) {
+				return true;
+			}
+			return false;
 		}
 	}
 
