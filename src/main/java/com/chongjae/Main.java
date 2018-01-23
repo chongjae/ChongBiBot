@@ -395,7 +395,7 @@ public class Main {
 				macdInfo.macd = macdInfo.ema12 - macdInfo.ema26;
 				macdInfo.signal = macdInfo.macd * (2.0 / ((double) signalDays + 1.0))
 						+ prevMacdInfo.signal * (1.0 - (2.0 / ((double) signalDays + 1.0)));
-				calRSI(list);
+				calRSI(list, false);
 				return;
 			}
 
@@ -459,16 +459,16 @@ public class Main {
 			 * macd > signal => Buy macd < signal => Sell
 			 */
 
-			calRSI(list);
+			calRSI(list, true);
 		} catch (BinanceApiException e) {
 			// TODO: handle exception
 		}
 	}
 
-	public static void calRSI(ArrayList<MACDInfo> list) {
+	public static void calRSI(ArrayList<MACDInfo> list, boolean isFirst) {
 		int nDays = 14;
 
-		if (!list.isEmpty()) {
+		if (!isFirst) {
 			MACDInfo info = list.get(list.size() - 1);
 			MACDInfo preInfo = list.get(list.size() - 2);
 			info.diff = info.closePrice - preInfo.closePrice;
@@ -568,7 +568,7 @@ public class Main {
 				return false;
 			}
 			MACDInfo info = list.get(list.size() - 1);
-			if (info.macd > info.signal && info.rsi < 35 && buyPrice == 0) {
+			if (info.macd > info.signal && info.rsi < 40 && buyPrice == 0) {
 				return true;
 			}
 			return false;
@@ -579,7 +579,7 @@ public class Main {
 				return false;
 			}
 			MACDInfo info = list.get(list.size() - 1);
-			if (info.macd < info.signal && info.rsi > 80 && buyPrice != 0) {
+			if (info.macd < info.signal && info.rsi > 75 && buyPrice != 0) {
 				return true;
 			}
 			return false;
