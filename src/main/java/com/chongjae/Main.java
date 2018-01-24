@@ -151,22 +151,20 @@ public class Main {
 								}
 							} else if (coinInfo.isSignalForSell()) {
 								double curRate = curBuyPrice / coinInfo.buyPrice;
-								if (curRate > 1.03f) {
-									sendMsgToTelegram(key + "을 " + coinInfo.buyPrice + "에 매수하여, " + curBuyPrice
-											+ "에 매도하였습니다. (" + curRate + ") ", false);
-									curProfit += (100 * curRate) - 100;
-									sendMsgToTelegram("Cur Profit : " + curProfit + ", Bought : \n" + getBoughtList(),
-											false);
-									coinInfo.cutPrice = curBuyPrice;
-									if (isReallyBuy) {
-										sellCoin(coinInfo);
-									} else {
-										boughtCnt--;
-										coinInfo.buyPrice = 0;
-									}
-									if (boughtCnt == 0) {
-										needToupdateTotalBalance = true;
-									}
+								sendMsgToTelegram(key + "을 " + coinInfo.buyPrice + "에 매수하여, " + curBuyPrice
+										+ "에 매도하였습니다. (" + curRate + ") ", false);
+								curProfit += (100 * curRate) - 100;
+								sendMsgToTelegram("Cur Profit : " + curProfit + ", Bought : \n" + getBoughtList(),
+										false);
+								coinInfo.cutPrice = curBuyPrice;
+								if (isReallyBuy) {
+									sellCoin(coinInfo);
+								} else {
+									boughtCnt--;
+									coinInfo.buyPrice = 0;
+								}
+								if (boughtCnt == 0) {
+									needToupdateTotalBalance = true;
 								}
 							}
 						}
@@ -568,7 +566,7 @@ public class Main {
 				return false;
 			}
 			MACDInfo info = list.get(list.size() - 1);
-			if (info.macd > info.signal && info.rsi < 40 && buyPrice == 0) {
+			if (info.macd > info.signal && info.rsi < 45 && buyPrice == 0) {
 				return true;
 			}
 			return false;
@@ -579,7 +577,7 @@ public class Main {
 				return false;
 			}
 			MACDInfo info = list.get(list.size() - 1);
-			if (info.macd < info.signal && info.rsi > 75 && buyPrice != 0) {
+			if (info.macd < info.signal && info.rsi > 60 && buyPrice != 0) {
 				return true;
 			}
 			return false;
