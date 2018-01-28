@@ -10,6 +10,7 @@ import java.sql.Statement;
 import java.text.DecimalFormat;
 import java.text.NumberFormat;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -44,7 +45,7 @@ public class Main {
 	public static int sellCount = 2;
 	public static int buyCnt = 2;
 	public static int boughtCnt = 0;
-	public static int maxBuyCnt = 2;
+	public static int maxBuyCnt = 3;
 	public static int numberOfKindle = 3;
 	public static boolean isReallyBuy;
 	public static double totalBalance;
@@ -117,8 +118,8 @@ public class Main {
 						}
 
 						calMCAD(coinInfo);
-						
-						if (coinInfo.isSignalForBuy() && coinInfo.buyPrice == 0 && boughtCnt < maxBuyCnt) {
+
+						if (coinInfo.buyPrice == 0 && boughtCnt < maxBuyCnt && coinInfo.isSignalForBuy()) {
 							coinInfo.buyPrice = curSellPrice;
 							sendMsgToTelegram(key + "이 급등하였습니다. Buy : " + curSellPrice, false);
 							if (isReallyBuy) {
@@ -151,20 +152,22 @@ public class Main {
 								}
 							} else if (coinInfo.isSignalForSell()) {
 								double curRate = curBuyPrice / coinInfo.buyPrice;
-								sendMsgToTelegram(key + "을 " + coinInfo.buyPrice + "에 매수하여, " + curBuyPrice
-										+ "에 매도하였습니다. (" + curRate + ") ", false);
-								curProfit += (100 * curRate) - 100;
-								sendMsgToTelegram("Cur Profit : " + curProfit + ", Bought : \n" + getBoughtList(),
-										false);
-								coinInfo.cutPrice = curBuyPrice;
-								if (isReallyBuy) {
-									sellCoin(coinInfo);
-								} else {
-									boughtCnt--;
-									coinInfo.buyPrice = 0;
-								}
-								if (boughtCnt == 0) {
-									needToupdateTotalBalance = true;
+								if (curRate > 1.03f) {
+									sendMsgToTelegram(key + "을 " + coinInfo.buyPrice + "에 매수하여, " + curBuyPrice
+											+ "에 매도하였습니다. (" + curRate + ") ", false);
+									curProfit += (100 * curRate) - 100;
+									sendMsgToTelegram("Cur Profit : " + curProfit + ", Bought : \n" + getBoughtList(),
+											false);
+									coinInfo.cutPrice = curBuyPrice;
+									if (isReallyBuy) {
+										sellCoin(coinInfo);
+									} else {
+										boughtCnt--;
+										coinInfo.buyPrice = 0;
+									}
+									if (boughtCnt == 0) {
+										needToupdateTotalBalance = true;
+									}
 								}
 							}
 						}
@@ -375,7 +378,6 @@ public class Main {
 				return;
 			}
 			ArrayList<MACDInfo> list = coin.list;
-
 			if (!list.isEmpty()) {
 				BinanceCandlestick candle = klines.get(klines.size() - 1);
 				MACDInfo macdInfo = list.get(list.size() - 1);
@@ -396,7 +398,6 @@ public class Main {
 				calRSI(list, false);
 				return;
 			}
-
 			for (BinanceCandlestick candle : klines) {
 				list.add(new MACDInfo(candle.closeTime, candle.close.doubleValue()));
 			}
@@ -565,11 +566,32 @@ public class Main {
 			if (list.isEmpty()) {
 				return false;
 			}
-			MACDInfo info = list.get(list.size() - 1);
-			if (info.macd > info.signal && info.rsi < 45 && buyPrice == 0) {
-				return true;
+			MACDInfo isSignal = null;
+			for (int i = list.size() - 1; i > 0; i--) {
+				MACDInfo info = list.get(i);
+				if (info.macd > info.signal) {
+					if (info.rsi < 45) {
+						isSignal = info;
+					}
+				} else {
+					break;
+				}
 			}
-			return false;
+			if (isSignal == null) {
+				return false;
+			} else {
+				long curTime = System.currentTimeMillis();
+				long diff = curTime - isSignal.date;
+				Date diffDate = new Date(diff);
+				int sec = diffDate.getSeconds() + diffDate.getMinutes() * 60 + diffDate.getHours() * 60 * 60;
+
+				if (sec <= 15 * 60) {
+					return true;
+				} else {
+					return false;
+				}
+			}
+
 		}
 
 		public boolean isSignalForSell() {
@@ -577,7 +599,7 @@ public class Main {
 				return false;
 			}
 			MACDInfo info = list.get(list.size() - 1);
-			if (info.macd < info.signal && info.rsi > 60 && buyPrice != 0) {
+			if (info.macd < info.signal) {
 				return true;
 			}
 			return false;
