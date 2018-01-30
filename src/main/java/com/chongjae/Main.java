@@ -410,6 +410,7 @@ public class Main {
 				saveCoinInfoToDB(coin, update);
 				return;
 			}
+			logger.info("List is empty. Init!!");
 			for (BinanceCandlestick candle : klines) {
 				list.add(new MACDInfo(candle.closeTime, candle.close.doubleValue()));
 			}
@@ -574,7 +575,7 @@ public class Main {
 				pstmt.setLong(5, info.date);
 				break;
 			case UPDATE_LAST:
-				sql = "UPDATE coins SET macd = ?, signal = ? , rsi = ? WHERE key = ? AND date = ?";
+				sql = "UPDATE coins SET macd = ?, signal = ? , rsi = ? WHERE coinName = ? AND date = ?";
 				pstmt = con.prepareStatement(sql);
 
 				MACDInfo info2 = coin.list.get(coin.list.size() - 1);
