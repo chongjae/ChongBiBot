@@ -410,7 +410,7 @@ public class Main {
 				saveCoinInfoToDB(coin, update);
 				return;
 			}
-			logger.info("List is empty. Init!!");
+
 			for (BinanceCandlestick candle : klines) {
 				list.add(new MACDInfo(candle.closeTime, candle.close.doubleValue()));
 			}
@@ -560,7 +560,8 @@ public class Main {
 					pstmt.setDouble(2, info.macd);
 					pstmt.setDouble(3, info.signal);
 					pstmt.setDouble(4, info.rsi);
-					pstmt.setLong(5, info.date);
+					pstmt.setDate(5, new java.sql.Date(info.date));
+					pstmt.executeUpdate();
 				}
 				break;
 			case INSERT_LAST:
@@ -572,7 +573,8 @@ public class Main {
 				pstmt.setDouble(2, info.macd);
 				pstmt.setDouble(3, info.signal);
 				pstmt.setDouble(4, info.rsi);
-				pstmt.setLong(5, info.date);
+				pstmt.setDate(5, new java.sql.Date(info.date));
+				pstmt.executeUpdate();
 				break;
 			case UPDATE_LAST:
 				sql = "UPDATE coins SET macd = ?, signal = ? , rsi = ? WHERE coinName = ? AND date = ?";
@@ -583,13 +585,11 @@ public class Main {
 				pstmt.setDouble(2, info2.signal);
 				pstmt.setDouble(3, info2.rsi);
 				pstmt.setString(4, coin.key);
-				pstmt.setLong(5, info2.date);
+				pstmt.setDate(5, new java.sql.Date(info2.date));
+				pstmt.executeUpdate();
 				break;
 			default:
 				break;
-			}
-			if (pstmt != null) {
-				pstmt.executeUpdate();
 			}
 		} catch (SQLException e) {
 			logger.info(e.getMessage());
