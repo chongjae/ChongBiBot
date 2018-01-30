@@ -542,8 +542,8 @@ public class Main {
 	public static void saveCoinInfoToDB(CoinInfo coin, int sqlSelector) {
 		Connection con = null;
 		try {
-			Class.forName("org.sqlite.JDBC");
-			con = DriverManager.getConnection("jdbc:sqlite:coinInfo.db");
+			Class.forName("com.mysql.jdbc.Driver");
+			con = DriverManager.getConnection("jdbc:mysql:localhost:3306/coinInfo" , "coin", "coin1234");
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
