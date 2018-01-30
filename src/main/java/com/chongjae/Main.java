@@ -542,8 +542,8 @@ public class Main {
 	public static void saveCoinInfoToDB(CoinInfo coin, int sqlSelector) {
 		Connection con = null;
 		try {
-			Class.forName("com.mysql.jdbc.Driver");
-			con = DriverManager.getConnection("jdbc:mysql:localhost:3306/coinInfo" , "coin", "coin1234");
+			Class.forName("com.mysql.cj.jdbc.Driver");
+			con = DriverManager.getConnection("jdbc:mysql://localhost:3306/coinInfo?serverTimezone=UTC" , "coin", "coin1234");
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
@@ -552,7 +552,7 @@ public class Main {
 			PreparedStatement pstmt = null;
 			switch (sqlSelector) {
 			case NEW_INSERT:
-				sql = "INSERT INTO coins(coinName,macd,signal,rsi,date) VALUES(?,?,?,?,?)";
+				sql = "INSERT INTO coins(coinName,macd,macdSignal,rsi,date) VALUES(?,?,?,?,?)";
 				pstmt = con.prepareStatement(sql);
 
 				for (MACDInfo info : coin.list) {
@@ -565,7 +565,7 @@ public class Main {
 				}
 				break;
 			case INSERT_LAST:
-				sql = "INSERT INTO coins(coinName,macd,signal,rsi,date) VALUES(?,?,?,?,?)";
+				sql = "INSERT INTO coins(coinName,macd,macdSignal,rsi,date) VALUES(?,?,?,?,?)";
 				pstmt = con.prepareStatement(sql);
 
 				MACDInfo info = coin.list.get(coin.list.size() - 1);
@@ -577,7 +577,7 @@ public class Main {
 				pstmt.executeUpdate();
 				break;
 			case UPDATE_LAST:
-				sql = "UPDATE coins SET macd = ?, signal = ? , rsi = ? WHERE coinName = ? AND date = ?";
+				sql = "UPDATE coins SET macd = ?, macdSignal = ? , rsi = ? WHERE coinName = ? AND date = ?";
 				pstmt = con.prepareStatement(sql);
 
 				MACDInfo info2 = coin.list.get(coin.list.size() - 1);
