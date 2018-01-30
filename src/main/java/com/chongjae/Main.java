@@ -560,7 +560,7 @@ public class Main {
 					pstmt.setDouble(2, info.macd);
 					pstmt.setDouble(3, info.signal);
 					pstmt.setDouble(4, info.rsi);
-					pstmt.setDate(5, new java.sql.Date(info.date));
+					pstmt.setDouble(5, info.date);
 					pstmt.executeUpdate();
 				}
 				break;
@@ -573,7 +573,7 @@ public class Main {
 				pstmt.setDouble(2, info.macd);
 				pstmt.setDouble(3, info.signal);
 				pstmt.setDouble(4, info.rsi);
-				pstmt.setDate(5, new java.sql.Date(info.date));
+				pstmt.setDouble(5, info.date);
 				pstmt.executeUpdate();
 				break;
 			case UPDATE_LAST:
@@ -585,13 +585,15 @@ public class Main {
 				pstmt.setDouble(2, info2.signal);
 				pstmt.setDouble(3, info2.rsi);
 				pstmt.setString(4, coin.key);
-				pstmt.setDate(5, new java.sql.Date(info2.date));
+				pstmt.setDouble(5, info2.date);
 				pstmt.executeUpdate();
 				break;
 			default:
 				break;
 			}
 		} catch (SQLException e) {
+			logger.info(e.getMessage());
+		} catch (Exception e) {
 			logger.info(e.getMessage());
 		}
 	}
