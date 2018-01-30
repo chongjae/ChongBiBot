@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.sql.Connection;
 import java.sql.DriverManager;
+import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
@@ -18,6 +19,8 @@ import java.util.Set;
 import java.util.logging.FileHandler;
 import java.util.logging.Logger;
 import java.util.logging.SimpleFormatter;
+
+import org.sqlite.SQLiteConfig;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
@@ -37,6 +40,10 @@ import com.webcerebrium.binance.datatype.BinanceSymbol;
 import com.webcerebrium.binance.datatype.BinanceWalletAsset;
 
 public class Main {
+
+	public static final int NEW_INSERT = 0;
+	public static final int INSERT_LAST = 1;
+	public static final int UPDATE_LAST = 2;
 
 	public static int minuteThreshold = 5 * 60;
 	public static double rapidThreshold = 1.02;
@@ -202,8 +209,10 @@ public class Main {
 		Connection con = null;
 		Statement stat = null;
 		try {
+			SQLiteConfig config = new SQLiteConfig();
+			config.setReadOnly(true);
 			Class.forName("org.sqlite.JDBC");
-			con = DriverManager.getConnection("jdbc:sqlite:user.db");
+			con = DriverManager.getConnection("jdbc:sqlite:user.db", config.toProperties());
 			stat = con.createStatement();
 		} catch (Exception e) {
 			e.printStackTrace();
@@ -381,8 +390,10 @@ public class Main {
 			if (!list.isEmpty()) {
 				BinanceCandlestick candle = klines.get(klines.size() - 1);
 				MACDInfo macdInfo = list.get(list.size() - 1);
+				int update = INSERT_LAST;
 				if (candle.closeTime - macdInfo.date == 0) {
 					macdInfo.closePrice = candle.close.doubleValue();
+					update = UPDATE_LAST;
 				} else {
 					list.add(new MACDInfo(candle.closeTime, candle.close.doubleValue()));
 					macdInfo = list.get(list.size() - 1);
@@ -396,6 +407,7 @@ public class Main {
 				macdInfo.signal = macdInfo.macd * (2.0 / ((double) signalDays + 1.0))
 						+ prevMacdInfo.signal * (1.0 - (2.0 / ((double) signalDays + 1.0)));
 				calRSI(list, false);
+				saveCoinInfoToDB(coin, update);
 				return;
 			}
 			for (BinanceCandlestick candle : klines) {
@@ -459,6 +471,7 @@ public class Main {
 			 */
 
 			calRSI(list, true);
+			saveCoinInfoToDB(coin, NEW_INSERT);
 		} catch (BinanceApiException e) {
 			// TODO: handle exception
 		}
@@ -522,6 +535,63 @@ public class Main {
 			info.rs = info.avgUp / info.avgDown;
 
 			info.rsi = 100.0 - (100.0 / (1.0 + info.rs));
+		}
+	}
+
+	public static void saveCoinInfoToDB(CoinInfo coin, int sqlSelector) {
+		Connection con = null;
+		try {
+			Class.forName("org.sqlite.JDBC");
+			con = DriverManager.getConnection("jdbc:sqlite:coinInfo.db");
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+		try {
+			String sql;
+			PreparedStatement pstmt = null;
+			switch (sqlSelector) {
+			case NEW_INSERT:
+				sql = "INSERT INTO coins(coinName,macd,signal,rsi,date) VALUES(?,?,?,?,?)";
+				pstmt = con.prepareStatement(sql);
+
+				for (MACDInfo info : coin.list) {
+					pstmt.setString(1, coin.key);
+					pstmt.setDouble(2, info.macd);
+					pstmt.setDouble(3, info.signal);
+					pstmt.setDouble(4, info.rsi);
+					pstmt.setLong(5, info.date);
+				}
+				break;
+			case INSERT_LAST:
+				sql = "INSERT INTO coins(coinName,macd,signal,rsi,date) VALUES(?,?,?,?,?)";
+				pstmt = con.prepareStatement(sql);
+
+				MACDInfo info = coin.list.get(coin.list.size() - 1);
+				pstmt.setString(1, coin.key);
+				pstmt.setDouble(2, info.macd);
+				pstmt.setDouble(3, info.signal);
+				pstmt.setDouble(4, info.rsi);
+				pstmt.setLong(5, info.date);
+				break;
+			case UPDATE_LAST:
+				sql = "UPDATE coins SET macd = ?, signal = ? , rsi = ? WHERE key = ? AND date = ?";
+				pstmt = con.prepareStatement(sql);
+
+				MACDInfo info2 = coin.list.get(coin.list.size() - 1);
+				pstmt.setDouble(1, info2.macd);
+				pstmt.setDouble(2, info2.signal);
+				pstmt.setDouble(3, info2.rsi);
+				pstmt.setString(4, coin.key);
+				pstmt.setLong(5, info2.date);
+				break;
+			default:
+				break;
+			}
+			if (pstmt != null) {
+				pstmt.executeUpdate();
+			}
+		} catch (SQLException e) {
+			logger.info(e.getMessage());
 		}
 	}
 
