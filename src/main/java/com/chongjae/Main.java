@@ -552,40 +552,43 @@ public class Main {
 			PreparedStatement pstmt = null;
 			switch (sqlSelector) {
 			case NEW_INSERT:
-				sql = "INSERT INTO coins(coinName,macd,macdSignal,rsi,date) VALUES(?,?,?,?,?)";
+				sql = "INSERT INTO coins(coinName,closePrice,macd,macdSignal,rsi,date) VALUES(?,?,?,?,?,?)";
 				pstmt = con.prepareStatement(sql);
 
 				for (MACDInfo info : coin.list) {
 					pstmt.setString(1, coin.key);
-					pstmt.setDouble(2, info.macd);
-					pstmt.setDouble(3, info.signal);
-					pstmt.setDouble(4, info.rsi);
-					pstmt.setDouble(5, info.date);
+					pstmt.setString(2, info.closePrice);
+					pstmt.setDouble(3, info.macd);
+					pstmt.setDouble(4, info.signal);
+					pstmt.setDouble(5, info.rsi);
+					pstmt.setDouble(6, info.date);
 					pstmt.executeUpdate();
 				}
 				break;
 			case INSERT_LAST:
-				sql = "INSERT INTO coins(coinName,macd,macdSignal,rsi,date) VALUES(?,?,?,?,?)";
+				sql = "INSERT INTO coins(coinName,closePrice,macd,macdSignal,rsi,date) VALUES(?,?,?,?,?,?)";
 				pstmt = con.prepareStatement(sql);
 
 				MACDInfo info = coin.list.get(coin.list.size() - 1);
 				pstmt.setString(1, coin.key);
-				pstmt.setDouble(2, info.macd);
-				pstmt.setDouble(3, info.signal);
-				pstmt.setDouble(4, info.rsi);
-				pstmt.setDouble(5, info.date);
+				pstmt.setString(2, info.closePrice);
+				pstmt.setDouble(3, info.macd);
+				pstmt.setDouble(4, info.signal);
+				pstmt.setDouble(5, info.rsi);
+				pstmt.setDouble(6, info.date);
 				pstmt.executeUpdate();
 				break;
 			case UPDATE_LAST:
-				sql = "UPDATE coins SET macd = ?, macdSignal = ? , rsi = ? WHERE coinName = ? AND date = ?";
+				sql = "UPDATE coins SET closePrice = ?, macd = ?, macdSignal = ? , rsi = ? WHERE coinName = ? AND date = ?";
 				pstmt = con.prepareStatement(sql);
 
 				MACDInfo info2 = coin.list.get(coin.list.size() - 1);
-				pstmt.setDouble(1, info2.macd);
-				pstmt.setDouble(2, info2.signal);
-				pstmt.setDouble(3, info2.rsi);
-				pstmt.setString(4, coin.key);
-				pstmt.setDouble(5, info2.date);
+				pstmt.setDouble(1, info2.closePrice);
+				pstmt.setDouble(2, info2.macd);
+				pstmt.setDouble(3, info2.signal);
+				pstmt.setDouble(4, info2.rsi);
+				pstmt.setString(5, coin.key);
+				pstmt.setDouble(6, info2.date);
 				pstmt.executeUpdate();
 				break;
 			default:
@@ -643,7 +646,7 @@ public class Main {
 			for (int i = list.size() - 1; i > 0; i--) {
 				MACDInfo info = list.get(i);
 				if (info.macd > info.signal) {
-					if (info.rsi < 45) {
+					if (info.rsi < 35) {
 						isSignal = info;
 					}
 				} else {
