@@ -557,7 +557,7 @@ public class Main {
 
 				for (MACDInfo info : coin.list) {
 					pstmt.setString(1, coin.key);
-					pstmt.setString(2, info.closePrice);
+					pstmt.setDouble(2, info.closePrice);
 					pstmt.setDouble(3, info.macd);
 					pstmt.setDouble(4, info.signal);
 					pstmt.setDouble(5, info.rsi);
@@ -571,7 +571,7 @@ public class Main {
 
 				MACDInfo info = coin.list.get(coin.list.size() - 1);
 				pstmt.setString(1, coin.key);
-				pstmt.setString(2, info.closePrice);
+				pstmt.setDouble(2, info.closePrice);
 				pstmt.setDouble(3, info.macd);
 				pstmt.setDouble(4, info.signal);
 				pstmt.setDouble(5, info.rsi);
