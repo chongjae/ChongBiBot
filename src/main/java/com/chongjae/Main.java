@@ -653,16 +653,14 @@ public class Main {
 			if (isSignal == null) {
 				return false;
 			} else {
-				long curTime = System.currentTimeMillis();
-				long diff = curTime - isSignal.date;
-				Date diffDate = new Date(diff);
-				int sec = diffDate.getSeconds() + diffDate.getMinutes() * 60 + diffDate.getHours() * 60 * 60;
-
-				if (sec <= 15 * 60) {
+				long diffSeconds = (System.currentTimeMillis() - isSignal.date) / 1000;
+				
+				if(diffSeconds <= 60 * 15) {
 					return true;
 				} else {
 					return false;
 				}
+
 			}
 
 		}
