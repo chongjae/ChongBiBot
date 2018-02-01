@@ -159,7 +159,7 @@ public class Main {
 								}
 							} else if (coinInfo.isSignalForSell()) {
 								double curRate = curBuyPrice / coinInfo.buyPrice;
-								if (curRate > 1.03f) {
+								if (curRate > 1.02f || coinInfo.list.get(coinInfo.list.size() -1).rsi > 75) {
 									sendMsgToTelegram(key + "을 " + coinInfo.buyPrice + "에 매수하여, " + curBuyPrice
 											+ "에 매도하였습니다. (" + curRate + ") ", false);
 									curProfit += (100 * curRate) - 100;
@@ -246,7 +246,7 @@ public class Main {
 			BinanceApi api = new BinanceApi();
 			BinanceSymbol symbol = new BinanceSymbol(coin.key);
 			BinanceOrderPlacement placement = new BinanceOrderPlacement(symbol, BinanceOrderSide.BUY);
-			placement.setType(BinanceOrderType.LIMIT);
+			placement.setType(BinanceOrderType.MARKET);
 			double buyPrice = Double.valueOf(coin.priceStep.format(coin.buyPrice * 1.02));
 			double quantity = Double.valueOf(coin.quantityStep.format(totalBalance * assetRate / buyPrice));
 
@@ -274,7 +274,7 @@ public class Main {
 			BinanceApi api = new BinanceApi();
 			BinanceSymbol symbol = new BinanceSymbol(coin.key);
 			BinanceOrderPlacement placement = new BinanceOrderPlacement(symbol, BinanceOrderSide.SELL);
-			placement.setType(BinanceOrderType.LIMIT);
+			placement.setType(BinanceOrderType.MARKET);
 			double sellPrice = Double.valueOf(coin.priceStep.format(coin.cutPrice * 0.98));
 			double quantity = Double.valueOf(coin.quantityStep
 					.format(new BinanceApi().balancesMap().get(coin.key.substring(0, coin.key.indexOf("ETH"))).free
@@ -658,7 +658,7 @@ public class Main {
 			} else {
 				long diffSeconds = (System.currentTimeMillis() - isSignal.date) / 1000;
 				
-				if(diffSeconds <= 60 * 15) {
+				if(diffSeconds < 60 * 15) {
 					return true;
 				} else {
 					return false;
