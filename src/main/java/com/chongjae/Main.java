@@ -261,7 +261,6 @@ public class Main {
 			if (order.toString().contains("ERROR") || order.toString().contains("Fail")) {
 				coin.buyPrice = 0;
 			} else {
-				coin.buyPrice = order.price.doubleValue();
 				boughtCnt++;
 			}
 		} catch (BinanceApiException e) {
