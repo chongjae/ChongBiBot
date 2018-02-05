@@ -640,8 +640,6 @@ public class Main {
 	public static void loadUserInfo() {
 		Connection con = null;
 		try {
-			Class.forName("com.mysql.jdbc.Driver");
-			con = DriverManager.getConnection("jdbc:mysql:localhost:3306/coinInfo" , "coin", "coin1234");
 			Class.forName("com.mysql.cj.jdbc.Driver");
 			con = DriverManager.getConnection("jdbc:mysql://localhost:3306/coinInfo?serverTimezone=UTC" , "coin", "coin1234");
 			String sql = "select * from userInfo";
