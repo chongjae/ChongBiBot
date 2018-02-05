@@ -82,6 +82,7 @@ public class Main {
 
 		while (true) {
 			try {
+				loadUserInfo();
 				BinanceApi api = new BinanceApi();
 				if (isReallyBuy && needToupdateTotalBalance) {
 					boolean existOpenOrders = false;
@@ -99,7 +100,6 @@ public class Main {
 					if (!existOpenOrders) {
 						totalBalance = balance.get("ETH").free.doubleValue();
 						sendMsgToTelegram("Current Balance : " + totalBalance, true);
-						loadUserInfo();
 						needToupdateTotalBalance = false;
 					}
 				}
