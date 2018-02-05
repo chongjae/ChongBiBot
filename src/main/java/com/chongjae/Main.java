@@ -48,7 +48,8 @@ public class Main {
 	public static int minuteThreshold = 5 * 60;
 	public static double rapidThreshold = 1.02;
 	public static double sellThreshold = 1.03;
-	public static double constantSellThreshold = 1.1;
+	public static double constantLossThreshold = 1.07;
+	public static double constantProfitThreshold = 1.04;
 	public static int sellCount = 2;
 	public static int buyCnt = 2;
 	public static int boughtCnt = 0;
@@ -77,6 +78,7 @@ public class Main {
 		logger.info(String.valueOf(isReallyBuy));
 
 		initCoinInfo();
+		loadUserInfo();
 
 		while (true) {
 			try {
@@ -97,6 +99,7 @@ public class Main {
 					if (!existOpenOrders) {
 						totalBalance = balance.get("ETH").free.doubleValue();
 						sendMsgToTelegram("Current Balance : " + totalBalance, true);
+						loadUserInfo();
 						needToupdateTotalBalance = false;
 					}
 				}
@@ -125,14 +128,13 @@ public class Main {
 						}
 
 						calMCAD(coinInfo);
+						coinInfo.curPrice = curBuyPrice;
 
-						if (coinInfo.buyPrice == 0 && boughtCnt < maxBuyCnt && coinInfo.isSignalForBuy()) {
+						if (coinInfo.buyPrice == 0 && coinInfo.isSignalForBuy()) {
 							coinInfo.buyPrice = curSellPrice;
 							sendMsgToTelegram(key + "이 급등하였습니다. Buy : " + curSellPrice, false);
-							if (isReallyBuy) {
+							if (isReallyBuy && coinInfo.isBought && boughtCnt < maxBuyCnt) {
 								buyCoin(coinInfo);
-							} else {
-								boughtCnt++;
 							}
 							continue;
 						}
@@ -140,7 +142,7 @@ public class Main {
 						if (coinInfo.buyPrice != 0) {
 							double cutRate = coinInfo.buyPrice / curBuyPrice;
 
-							if (cutRate >= constantSellThreshold) {
+							if (cutRate >= constantLossThreshold) {
 								cutRate = curBuyPrice / coinInfo.buyPrice;
 								sendMsgToTelegram(key + "을 " + coinInfo.buyPrice + "에 매수하여, " + curBuyPrice
 										+ "에 매도하였습니다. (" + cutRate + ") ", false);
@@ -148,14 +150,13 @@ public class Main {
 								sendMsgToTelegram("Cur Profit : " + curProfit + ", Bought : \n" + getBoughtList(),
 										false);
 								coinInfo.cutPrice = curBuyPrice;
-								if (isReallyBuy) {
+								if (isReallyBuy && coinInfo.isBought) {
 									sellCoin(coinInfo);
+									if (boughtCnt == 0) {
+										needToupdateTotalBalance = true;
+									}
 								} else {
-									boughtCnt--;
 									coinInfo.buyPrice = 0;
-								}
-								if (boughtCnt == 0) {
-									needToupdateTotalBalance = true;
 								}
 							} else if (coinInfo.isSignalForSell()) {
 								double curRate = curBuyPrice / coinInfo.buyPrice;
@@ -166,17 +167,18 @@ public class Main {
 									sendMsgToTelegram("Cur Profit : " + curProfit + ", Bought : \n" + getBoughtList(),
 											false);
 									coinInfo.cutPrice = curBuyPrice;
-									if (isReallyBuy) {
+									if (isReallyBuy && coinInfo.isBought) {
 										sellCoin(coinInfo);
+										if (boughtCnt == 0) {
+											needToupdateTotalBalance = true;
+										}
 									} else {
-										boughtCnt--;
 										coinInfo.buyPrice = 0;
-									}
-									if (boughtCnt == 0) {
-										needToupdateTotalBalance = true;
 									}
 								}
 							}
+							
+							saveBoughtInfo(coinInfo);
 						}
 					}
 				}
@@ -262,6 +264,8 @@ public class Main {
 				coin.buyPrice = 0;
 			} else {
 				boughtCnt++;
+				coin.isBought = true;
+				saveBoughtInfo(coin);
 			}
 		} catch (BinanceApiException e) {
 			sendMsgToTelegram(e.getMessage(), true);
@@ -298,6 +302,7 @@ public class Main {
 			} else {
 				boughtCnt--;
 				coin.buyPrice = 0;
+				coin.isBought = false;
 			}
 		} catch (BinanceApiException e) {
 			sendMsgToTelegram(e.getMessage(), true);
@@ -599,6 +604,63 @@ public class Main {
 			logger.info(e.getMessage());
 		}
 	}
+	
+	public static void saveBoughtInfo(CoinInfo coin) {
+		Connection con = null;
+		try {
+			Class.forName("com.mysql.jdbc.Driver");
+			con = DriverManager.getConnection("jdbc:mysql:localhost:3306/coinInfo" , "coin", "coin1234");
+			Class.forName("com.mysql.cj.jdbc.Driver");
+			con = DriverManager.getConnection("jdbc:mysql://localhost:3306/coinInfo?serverTimezone=UTC" , "coin", "coin1234");
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+		try {
+			String sql;
+			PreparedStatement pstmt = null;
+			sql = "INSERT INTO boughtCoins(coinName,buyDate,buyPrice,curPrice,isBought) VALUES(?,?,?,?,?) on DUPLICATE KEY UPDATE buyDate=?, buyPrice=?, curPrice=?, isBought=?";
+			pstmt = con.prepareStatement(sql);
+
+			pstmt.setString(1, coin.key);
+			pstmt.setDouble(2, System.currentTimeMillis());
+			pstmt.setDouble(3, coin.buyPrice);
+			pstmt.setDouble(4, coin.curPrice);
+			pstmt.setBoolean(5, coin.isBought);
+			pstmt.setDouble(6, System.currentTimeMillis());
+			pstmt.setDouble(7, coin.buyPrice);
+			pstmt.setDouble(8, coin.curPrice);
+			pstmt.setBoolean(9, coin.isBought);
+			pstmt.executeUpdate();
+			pstmt.close();
+		} catch (SQLException e) {
+			logger.info(e.getMessage());
+		} catch (Exception e) {
+			logger.info(e.getMessage());
+		}
+	}
+
+	public static void loadUserInfo() {
+		Connection con = null;
+		try {
+			Class.forName("com.mysql.jdbc.Driver");
+			con = DriverManager.getConnection("jdbc:mysql:localhost:3306/coinInfo" , "coin", "coin1234");
+			Class.forName("com.mysql.cj.jdbc.Driver");
+			con = DriverManager.getConnection("jdbc:mysql://localhost:3306/coinInfo?serverTimezone=UTC" , "coin", "coin1234");
+			String sql = "select * from userInfo";
+			Statement stat = con.createStatement();
+			ResultSet rs = stat.executeQuery(sql);
+			while (rs.next()) {
+				constantLossThreshold = rs.getDouble("lossRate");
+				constantProfitThreshold = rs.getDouble("profitRate");
+				assetRate = rs.getDouble("buyRate");
+				maxBuyCnt = (int) (1.0 / assetRate);
+			}
+			rs.close();
+			stat.close();
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+	}
 
 	public static class MACDInfo {
 		long date;
@@ -622,11 +684,13 @@ public class Main {
 	public static class CoinInfo {
 		public String key;
 		public double buyPrice;
+		public double curPrice;
 		public double cutPrice;
 		public double minQty;
 		public NumberFormat quantityStep;
 		public double minPrice;
 		public NumberFormat priceStep;
+		public boolean isBought;
 		public ArrayList<MACDInfo> list = new ArrayList<MACDInfo>();
 
 		public CoinInfo(String key, double minQty, NumberFormat step, double minPrice, NumberFormat priceStep) {
