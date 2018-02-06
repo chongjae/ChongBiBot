@@ -78,6 +78,7 @@ public class Main {
 		logger.info(String.valueOf(isReallyBuy));
 
 		initCoinInfo();
+		loadCoinInfo();
 		loadUserInfo();
 
 		while (true) {
@@ -142,19 +143,19 @@ public class Main {
 						if (coinInfo.buyPrice != 0) {
 							double cutRate = coinInfo.buyPrice / curBuyPrice;
 
-							if (cutRate >= constantLossThreshold) {
+							if (cutRate >= constantLossThreshold || curBuyPrice / coinInfo.buyPrice > constantProfitThreshold) {
 								cutRate = curBuyPrice / coinInfo.buyPrice;
 								sendMsgToTelegram(key + "을 " + coinInfo.buyPrice + "에 매수하여, " + curBuyPrice
 										+ "에 매도하였습니다. (" + cutRate + ") ", false);
-								curProfit += (100 * cutRate) - 100;
-								sendMsgToTelegram("Cur Profit : " + curProfit + ", Bought : \n" + getBoughtList(),
-										false);
 								coinInfo.cutPrice = curBuyPrice;
 								if (isReallyBuy && coinInfo.isBought) {
 									sellCoin(coinInfo);
 									if (boughtCnt == 0) {
 										needToupdateTotalBalance = true;
 									}
+									curProfit += (100 * cutRate) - 100;
+									sendMsgToTelegram("Cur Profit : " + curProfit + ", Bought : \n" + getBoughtList(),
+											false);
 								} else {
 									coinInfo.buyPrice = 0;
 								}
@@ -163,21 +164,21 @@ public class Main {
 								if (curRate > 1.02f || coinInfo.list.get(coinInfo.list.size() -1).rsi > 75) {
 									sendMsgToTelegram(key + "을 " + coinInfo.buyPrice + "에 매수하여, " + curBuyPrice
 											+ "에 매도하였습니다. (" + curRate + ") ", false);
-									curProfit += (100 * curRate) - 100;
-									sendMsgToTelegram("Cur Profit : " + curProfit + ", Bought : \n" + getBoughtList(),
-											false);
 									coinInfo.cutPrice = curBuyPrice;
 									if (isReallyBuy && coinInfo.isBought) {
 										sellCoin(coinInfo);
 										if (boughtCnt == 0) {
 											needToupdateTotalBalance = true;
 										}
+										curProfit += (100 * curRate) - 100;
+										sendMsgToTelegram("Cur Profit : " + curProfit + ", Bought : \n" + getBoughtList(),
+												false);
 									} else {
 										coinInfo.buyPrice = 0;
 									}
 								}
 							}
-							
+
 							saveBoughtInfo(coinInfo);
 						}
 					}
@@ -265,6 +266,7 @@ public class Main {
 			} else {
 				boughtCnt++;
 				coin.isBought = true;
+				coin.buyDate = System.currentTimeMillis();
 				saveBoughtInfo(coin);
 			}
 		} catch (BinanceApiException e) {
@@ -620,11 +622,11 @@ public class Main {
 			pstmt = con.prepareStatement(sql);
 
 			pstmt.setString(1, coin.key);
-			pstmt.setDouble(2, System.currentTimeMillis());
+			pstmt.setDouble(2, coin.buyDate);
 			pstmt.setDouble(3, coin.buyPrice);
 			pstmt.setDouble(4, coin.curPrice);
 			pstmt.setBoolean(5, coin.isBought);
-			pstmt.setDouble(6, System.currentTimeMillis());
+			pstmt.setDouble(6, coin.buyDate);
 			pstmt.setDouble(7, coin.buyPrice);
 			pstmt.setDouble(8, coin.curPrice);
 			pstmt.setBoolean(9, coin.isBought);
@@ -634,6 +636,35 @@ public class Main {
 			logger.info(e.getMessage());
 		} catch (Exception e) {
 			logger.info(e.getMessage());
+		}
+	}
+	
+	public static void loadCoinInfo() {
+		Connection con = null;
+		try {
+			Class.forName("com.mysql.cj.jdbc.Driver");
+			con = DriverManager.getConnection("jdbc:mysql://localhost:3306/coinInfo?serverTimezone=UTC" , "coin", "coin1234");
+			String sql = "select * from boughtCoins";
+			Statement stat = con.createStatement();
+			ResultSet rs = stat.executeQuery(sql);
+			while (rs.next()) {
+				String key = rs.getString("coinName");
+				double buyDate = rs.getDouble("buyDate");
+				double buyPrice = rs.getDouble("buyPrice");
+				double curPrice = rs.getDouble("curPrice");
+				boolean isBought = rs.getBoolean("isBought");
+				CoinInfo coin = coins.get(key);
+				if(coin != null) {
+					coin.buyDate = buyDate;
+					coin.buyPrice = buyPrice;
+					coin.curPrice = curPrice;
+					coin.isBought = isBought;
+				}
+			}
+			rs.close();
+			stat.close();
+		} catch (Exception e) {
+			e.printStackTrace();
 		}
 	}
 
@@ -682,6 +713,7 @@ public class Main {
 		public double buyPrice;
 		public double curPrice;
 		public double cutPrice;
+		public double buyDate;
 		public double minQty;
 		public NumberFormat quantityStep;
 		public double minPrice;
