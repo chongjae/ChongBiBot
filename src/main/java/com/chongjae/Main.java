@@ -133,7 +133,7 @@ public class Main {
 						if (coinInfo.buyPrice == 0 && coinInfo.isSignalForBuy()) {
 							coinInfo.buyPrice = curSellPrice;
 							sendMsgToTelegram(key + "이 급등하였습니다. Buy : " + curSellPrice, false);
-							if (isReallyBuy && coinInfo.isBought && boughtCnt < maxBuyCnt) {
+							if (isReallyBuy && !coinInfo.isBought && boughtCnt < maxBuyCnt) {
 								buyCoin(coinInfo);
 							}
 							continue;
