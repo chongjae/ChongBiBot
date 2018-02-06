@@ -659,6 +659,9 @@ public class Main {
 					coin.buyPrice = buyPrice;
 					coin.curPrice = curPrice;
 					coin.isBought = isBought;
+					if (isBought) {
+							boughtCnt++;
+					}
 				}
 			}
 			rs.close();
