@@ -647,7 +647,7 @@ public class Main {
 		try {
 			Class.forName("com.mysql.cj.jdbc.Driver");
 			con = DriverManager.getConnection("jdbc:mysql://localhost:3306/coinInfo?serverTimezone=UTC" , "coin", "coin1234");
-			String sql = "delete * from coins";
+			String sql = "delete from coins";
 			Statement stat = con.createStatement();
 			stat.executeQuery(sql);
 			stat.close();
