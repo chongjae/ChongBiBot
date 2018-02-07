@@ -77,6 +77,7 @@ public class Main {
 		}
 		logger.info(String.valueOf(isReallyBuy));
 
+		initCoinDB();
 		initCoinInfo();
 		loadCoinInfo();
 		loadUserInfo();
@@ -132,6 +133,7 @@ public class Main {
 						coinInfo.curPrice = curBuyPrice;
 
 						if (coinInfo.buyPrice == 0 && coinInfo.isSignalForBuy()) {
+							coinInfo.buyDate = System.currentTimeMillis();
 							coinInfo.buyPrice = curSellPrice;
 							sendMsgToTelegram(key + "이 급등하였습니다. Buy : " + curSellPrice, false);
 							if (isReallyBuy && !coinInfo.isBought && boughtCnt < maxBuyCnt) {
@@ -156,6 +158,7 @@ public class Main {
 									curProfit += (100 * cutRate) - 100;
 									sendMsgToTelegram("Cur Profit : " + curProfit + ", Bought : \n" + getBoughtList(),
 											false);
+									saveProfit(curProfit);
 								} else {
 									coinInfo.buyPrice = 0;
 								}
@@ -173,6 +176,7 @@ public class Main {
 										curProfit += (100 * curRate) - 100;
 										sendMsgToTelegram("Cur Profit : " + curProfit + ", Bought : \n" + getBoughtList(),
 												false);
+										saveProfit(curProfit);
 									} else {
 										coinInfo.buyPrice = 0;
 									}
@@ -266,7 +270,6 @@ public class Main {
 			} else {
 				boughtCnt++;
 				coin.isBought = true;
-				coin.buyDate = System.currentTimeMillis();
 				saveBoughtInfo(coin);
 			}
 		} catch (BinanceApiException e) {
@@ -630,6 +633,44 @@ public class Main {
 			pstmt.setDouble(7, coin.buyPrice);
 			pstmt.setDouble(8, coin.curPrice);
 			pstmt.setBoolean(9, coin.isBought);
+			pstmt.executeUpdate();
+			pstmt.close();
+		} catch (SQLException e) {
+			logger.info(e.getMessage());
+		} catch (Exception e) {
+			logger.info(e.getMessage());
+		}
+	}
+	
+	public static void initCoinDB() {
+		Connection con = null;
+		try {
+			Class.forName("com.mysql.cj.jdbc.Driver");
+			con = DriverManager.getConnection("jdbc:mysql://localhost:3306/coinInfo?serverTimezone=UTC" , "coin", "coin1234");
+			String sql = "delete * from coins";
+			Statement stat = con.createStatement();
+			stat.executeQuery(sql);
+			stat.close();
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+	}
+	public static void saveProfit(double profit) {
+		Connection con = null;
+		try {
+			Class.forName("com.mysql.cj.jdbc.Driver");
+			con = DriverManager.getConnection("jdbc:mysql://localhost:3306/coinInfo?serverTimezone=UTC" , "coin", "coin1234");
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+		try {
+			String sql;
+			PreparedStatement pstmt = null;
+			sql = "UPDATE userInfo SET curProfit = ? WHERE name = ?";
+			pstmt = con.prepareStatement(sql);
+
+			pstmt.setDouble(1, profit);
+			pstmt.setString(2, "chongjae");
 			pstmt.executeUpdate();
 			pstmt.close();
 		} catch (SQLException e) {
